@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课堂管理系统 - 联网版</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        /* 保留原有样式... */
+        /* 添加联网设置样式 */
+        .cloud-login {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 9999;
+        }
+        .cloud-login-box {
+            background: white; padding: 40px; border-radius: 20px;
+            width: 90%; max-width: 400px; text-align: center;
+        }
+        .cloud-login-box h2 { color: #667eea; margin-bottom: 20px; }
+        .cloud-login-box input {
+            width: 100%; padding: 12px; margin: 10px 0;
+            border: 2px solid #e5e7eb; border-radius: 10px;
+            font-size: 16px;
+        }
+        .cloud-login-box button {
+            width: 100%; padding: 14px; margin-top: 15px;
+            background: #667eea; color: white; border: none;
+            border-radius: 10px; font-size: 16px; cursor: pointer;
+        }
+        .cloud-login-box .offline-btn {
+            background: #6c757d; margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 联网登录弹窗 -->
+    <div class="cloud-login" id="cloudLogin">
+        <div class="cloud-login-box">
+            <h2>☁️ 课堂管理系统</h2>
+            <p style="color: #888; margin-bottom: 20px;">输入班级ID和密码开始同步</p>
+            <input type="text" id="loginClassId" placeholder="班级ID（如：张老师三年级二班）">
+            <input type="password" id="loginPassword" placeholder="密码（自己设置）">
+            <button onclick="connectCloud()">连接云端</button>
+            <button class="offline-btn" onclick="useOffline()">离线使用（不同步）</button>
+            <p style="color: #999; font-size: 12px; margin-top: 15px;">
+                首次使用会自动创建账号<br>
+                换设备时输入相同ID和密码即可同步
+            </p>
+        </div>
+    </div>
+
+    <!-- 原有页面内容... -->
+    <div class="app-container" id="appContainer" style="display: none;">
+        <!-- 原有 HTML 结构... -->
+    </div>
+
+    <script>
+        // API 地址（部署后替换为你的 Vercel 地址）
+        const API_BASE = 'https://你的-vercel-地址.vercel.app/api';
+        
+        let classId = '';
+        let password = '';
+        let isOnline = false;
+
+        // 连接云端
+        async function connectCloud() {
+            classId = document.getElementById('loginClassId').value.trim();
+            password = document.getElementById('loginPassword').value.trim();
+            
+            if (!classId || !password) {
+                alert('请输入班级ID和密码');
+                return;
+            }
+
+            document.getElementById('cloudLogin').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'grid';
+            
+            // 尝试加载云端数据
+            await loadFromCloud();
+        }
+
+        // 离线使用
+        function useOffline() {
+            document.getElementById('cloudLogin').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'grid';
+            isOnline = false;
+        }
+
+        // 加载云端数据
+        async function loadFromCloud() {
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'load',
+                        classId: classId,
+                        password: password
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    // 解析数据到本地变量
+                    if (result.students) {
+                        students = result.students.map(s => s.name);
+                        scores = {};
+                        result.students.forEach(s => { scores[s.name] = s.score || 0; });
+                    }
+                    // ... 解析其他数据
+                    isOnline = true;
+                    alert('已同步云端数据');
+                }
+            } catch (e) {
+                console.error('加载失败:', e);
+                alert('云端连接失败，使用本地数据');
+            }
+        }
+
+        // 保存到云端
+        async function saveToCloud() {
+            if (!isOnline) return;
+            
+            try {
+                const data = {
+                    students: students,
+                    scores: scores,
+                    records: [...rollHistory, ...exchangeRecords, ...blindBoxRecords],
+                    shopItems: shopItems,
+                    customBtns: customScoreBtns
+                };
+                
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'save',
+                        classId: classId,
+                        password: password,
+                        data: data
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    console.log('保存成功');
+                }
+            } catch (e) {
+                console.error('保存失败:', e);
+            }
+        }
+
+        // 原有 JavaScript 代码...
+        // 在 saveAll() 中调用 saveToCloud()
+    </script>
+</body>
+</html>
